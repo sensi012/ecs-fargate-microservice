@@ -1,0 +1,12 @@
+{
+  "name": "microservice-api",
+  "version": "1.0.0",
+  "description": "Simple Node.js API for ECS Fargate project",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
