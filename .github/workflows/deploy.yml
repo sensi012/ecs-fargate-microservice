@@ -1,0 +1,51 @@
+name: Deploy Microservice
+
+on:
+  push:
+    branches: [ main, staging ]
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - branch: staging
+            environment: staging
+            aws_region: us-east-1
+          - branch: main
+            environment: dev
+            aws_region: us-east-1
+    if: github.ref_name == matrix.branch
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: microservice-api-${{ matrix.environment }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest app/
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:latest
+
+      - name: Update ECS Task Definition & Deploy Service
+        run: |
+          aws ecs update-service \
+            --cluster microservice-cluster-${{ matrix.environment }} \
+            --service microservice-svc-${{ matrix.environment }} \
+            --force-new-deployment
